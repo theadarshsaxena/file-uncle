@@ -1,0 +1,95 @@
+<!-- src/html/upload.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload</title>
+    <link href="static/css/base.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Urbanist:ital,wght@0,100..900;1,100..900&display=swap"
+      rel="stylesheet"
+    />
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen font-custom">
+    <div class="bg-white shadow-md rounded-lg md:flex w-3/5 h-2/5 overflow-scroll">
+        <!-- Left Part -->
+        <div class="md:w-2/5 flex flex-col items-center justify-center bg-gradient-to-t from-slate-800 to-slate-600 text-white p-8">
+            <img src="../static/img/logo.png" alt="Upload Image" class="mb-4">
+        </div>
+        <!-- Right Part -->
+        <div class="md:w-3/5 p-8">
+            <div class="flex flex-row items-center">
+                <h2 class="text-2xl text-slate-700 font-semibold font-custom">Download Files</h2>
+                <!--  -->
+            </div>
+            <div class="flex flex-col py-8 space-y-0 drop-shadow-sm">
+                <div class="flex flex-row px-4 py-3 rounded-t-lg bg-slate-500 text-white">
+                    <p class="px-4 w-12">ID</p>
+                    <p class="px-4 grow tracking-wider">Subject</p>
+                    <p class="px-4">Created</p>
+                    <p class="pr-4">Download</p>
+                </div>
+                <div class="max-h-screen-40 overflow-scroll rounded-b-md">
+                    {{range .}}
+                    <div class="flex flex-row px-4 border-slate-500 bg-gray-50 py-3 max-w-screen-xl min-w-fit border-0 border-b border-dashed">
+                        <p class="px-4 w-12 shrink-0">{{.LineNumber}}</p>
+                        <p class="px-4 grow tracking-wider" title="{{.Name}}">{{.DisplayName}}</p>
+                        <p class="px-4">{{.FileSize}}</p>
+                        <a href="/download/?file={{.Name}}" class="flex flex-row items-center text-orange-500 hover:underline hover:text-orange-700">
+                            <span class="mr-1">Download</span>
+                            <span class="inline-block">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="1em" width="1em" fill="currentColor">
+                                    <path d="M3 19H21V21H3V19ZM13 13.1716L19.0711 7.1005L20.4853 8.51472L12 17L3.51472 8.51472L4.92893 7.1005L11 13.1716V2H13V13.1716Z"></path>
+                                </svg>
+                            </span>
+                        </a>
+                    </div>
+                    {{end}}
+                </div>
+                
+            </div>
+            <a href="/download" class="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">Download All (as zip)</a>
+        </div>
+    </div>
+    <div class="mt-4 flex flex-row space-x-2">
+        <p class="">About File-Uncle:</p>
+        <a href="/docs" class="text-blue-500 hover:underline">Documentation</a>
+        <a href="https://github.com/theadarshsaxena/file-uncle" class="text-blue-500">GitHub</a>
+    </div>
+    <script src="static/js/upload.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</body>
+</html>
+
+<!-- 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white shadow-md rounded-lg overflow-hidden md:flex w-3/5">
+        <div class="md:w-2/5 flex flex-col items-center justify-center bg-blue-500 text-white p-8">
+            <img src="https://via.placeholder.com/150" alt="Upload Image" class="mb-4">
+            <h1 class="text-xl font-semibold">File sharing at ease</h1>
+        </div>
+        
+        <div class="md:w-3/5 p-8">
+            <h2 class="text-2xl font-semibold mb-6">Upload File</h2>
+            <form enctype="multipart/form-data" action="/" method="post" class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 p-6 rounded-md bg-gray-50 hover:border-blue-500">
+                <div class="mb-4 text-center">
+                    <p class="text-gray-600">Click or Drop files to upload</p>
+                </div>
+                <input type="file" name="uploadFile" class="mb-4 text-gray-600">
+                <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Upload</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html> -->

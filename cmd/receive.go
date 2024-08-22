@@ -4,8 +4,10 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"embed"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/user"
@@ -20,6 +22,16 @@ var username string
 var password string
 var dest string
 var host string
+
+//go:embed src/static/*
+var staticFiles embed.FS
+
+//go:embed src/html/upload.html
+var uploadHTML string
+
+//go:embed src/html/serve.html
+var ServeHTML string
+
 // receiveCmd represents the receive command
 var receiveCmd = &cobra.Command{
 	Use:   "receive",
@@ -33,7 +45,8 @@ var receiveCmd = &cobra.Command{
 func uploadHandler(uploadDir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
-			tmpl, err := template.ParseFiles("src/html/upload.html")
+			// tmpl, err := template.ParseFiles("src/html/upload.html")
+			tmpl, err := template.New("upload").Parse(uploadHTML)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -130,11 +143,21 @@ func receive() {
 	fmt.Printf("Destination folder: %s\n", uploadDir)
 
     // Serve static files
-    fs := http.FileServer(http.Dir("src/static"))
+	staticFs, err := fs.Sub(staticFiles, "src/static")
+	if err != nil {
+		fmt.Println("Error serving static files:", err)
+		return
+	}
+    fs := http.FileServer(http.FS(staticFs))
     http.Handle("/static/", http.StripPrefix("/static/", fs))
 
+	// http.Handle("/static/", http.FileServer(http.FS(staticFiles)))
+	// http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	// 	http.ServeFile(w, r, "src/html/upload.html")
+	// })
+
 	if username != "" && password != "" {
-		http.Handle("/", basicAuth(uploadHandler(uploadDir)))	
+		http.Handle("/", basicAuth(uploadHandler(uploadDir)))
 	} else {
 		http.HandleFunc("/", uploadHandler(uploadDir))
 	}
