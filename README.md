@@ -19,7 +19,17 @@ To install File Uncle, follow these steps:
 
 1. Launch File Uncle by running `go run .` in your project directory or `go build .` followed by `./file-uncle`.
 2. It will start a server at your chosen port (default: 8080). Clients in your network can send files from anywhere to your system.
-3. (Optional) If you want, you can run ngrok to receive from outside of your local network.
+3. To expose your server to the internet, use the built-in ngrok integration:
+
+	 - Add the `--with-ngrok` flag to either the `serve` or `receive` command:
+		 ```sh
+		 ./file-uncle serve --with-ngrok
+		 ./file-uncle receive --with-ngrok
+		 ```
+	 - Set the following environment variables before running the command:
+		 - `NGROK_AUTHTOKEN`: Your ngrok authtoken (required for authentication)
+	 - The tunnel endpoint will be printed in the console when started.
+	 - When you stop the server with CTRL+C, the tunnel will be closed
 
 ### Sending Files via CLI (curl)
 
