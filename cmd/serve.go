@@ -4,15 +4,47 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"text/template"
 	"unicode/utf8"
 
 	"github.com/spf13/cobra"
+	ngrok "golang.ngrok.com/ngrok/v2"
 )
+
+// You may need to define trafficPolicy if not already present
+// var trafficPolicy ngrok.TrafficPolicy
+
+func runNgrok(ctx context.Context, address string) error {
+	ngrokAuthToken := os.Getenv("NGROK_AUTHTOKEN")
+	agent, err := ngrok.NewAgent(ngrok.WithAuthtoken(ngrokAuthToken))
+	if err != nil {
+		return err
+	}
+
+	ln, err := agent.Forward(ctx,
+		ngrok.WithUpstream(address),
+		ngrok.WithURL(os.Getenv("NGROK_RESERVED_DOMAIN")),
+		// ngrok.WithTrafficPolicy(trafficPolicy),
+	)
+
+	if err != nil {
+		fmt.Println("Error", err)
+		return err
+	}
+
+	fmt.Println("Endpoint online: forwarding from", ln.URL(), "to", address)
+
+	// Explicitly stop forwarding; otherwise it runs indefinitely
+	<-ln.Done()
+	return nil
+}
 
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
@@ -94,25 +126,44 @@ func downloadFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, filePath)
 }
 
+var withNgrok bool
+
 func serveFile() {
 	http.HandleFunc("/", listFiles)
 	http.HandleFunc("/download", downloadFile)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("cmd/src/static"))))
 
 	fmt.Println("Server started at http://localhost:8080")
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if withNgrok {
+		address := fmt.Sprintf("http://localhost:%s", port)
+		go func() {
+			err := runNgrok(ctx, address)
+			if err != nil {
+				fmt.Println("ngrok error:", err)
+			}
+		}()
+	}
+
+	go func() {
+		<-sigs
+		fmt.Println("Stopped local http server and also ngrok tunnel stopped (if enabled)")
+		cancel()
+		os.Exit(0)
+	}()
+
 	http.ListenAndServe("localhost:8080", nil)
 }
 
 func init() {
+	// receiveCmd.Flags().StringVarP(&port, "port", "p", "8080", "Port number for the server")
+	// receiveCmd.Flags().StringVarP(&host, "host", "H", "", "Host address or Local IP to bind the server to (default is localhost)")
+	serveCmd.Flags().BoolVar(&withNgrok, "with-ngrok", false, "Start an ngrok tunnel for public access")
 	rootCmd.AddCommand(serveCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// serveCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

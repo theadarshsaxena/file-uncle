@@ -4,14 +4,17 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
 	"os"
+	"os/signal"
 	"os/user"
 	"path/filepath"
+	"syscall"
 	"text/template"
 
 	"github.com/spf13/cobra"
@@ -168,6 +171,29 @@ func receive() {
 	}
 
 	fmt.Println("\nServer started on: http://" + host + ":" + port)
+	
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if withNgrok {
+		address := fmt.Sprintf("http://localhost:%s", port)
+		go func() {
+			err := runNgrok(ctx, address)
+			if err != nil {
+				fmt.Println("ngrok error:", err)
+			}
+		}()
+	}
+
+	go func() {
+		<-sigs
+		fmt.Println("Stopped local http server and also ngrok tunnel stopped (if enabled)")
+		cancel()
+		os.Exit(0)
+	}()
 	http.ListenAndServe(host + ":" + port, nil)
 }
 
@@ -189,6 +215,7 @@ func init() {
 	receiveCmd.Flags().StringVarP(&username, "username", "u", "", "Username for basic auth (to be entered by the sender in browser)")
 	receiveCmd.Flags().StringVarP(&password, "password", "P", "", "Password for basic auth (to be entered by the sender in browser)")
 	receiveCmd.MarkFlagsRequiredTogether("username", "password")
+	receiveCmd.Flags().BoolVar(&withNgrok, "with-ngrok", false, "Start an ngrok tunnel for public access")
 	receiveCmd.Flags().StringVarP(&dest, "dest", "d", "", "Destination folder (should exist) to save the files")
 	receiveCmd.Flags().StringVarP(&host, "host", "H", "", "Host address or Local IP to bind the server to (default is localhost)")
 }
