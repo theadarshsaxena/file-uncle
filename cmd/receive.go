@@ -217,5 +217,5 @@ func init() {
 	receiveCmd.MarkFlagsRequiredTogether("username", "password")
 	receiveCmd.Flags().BoolVar(&withNgrok, "with-ngrok", false, "Start an ngrok tunnel for public access")
 	receiveCmd.Flags().StringVarP(&dest, "dest", "d", "", "Destination folder (should exist) to save the files")
-	receiveCmd.Flags().StringVarP(&host, "host", "H", "", "Host address or Local IP to bind the server to (default is localhost)")
+	receiveCmd.Flags().StringVarP(&host, "host", "H", "localhost", "Host address or Local IP to bind the server to (default is localhost)")
 }

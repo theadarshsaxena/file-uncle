@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Upload</title>
-    <link href="static/css/base.css" rel="stylesheet">
+    <link href="/static/css/base.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -38,7 +38,7 @@
                         <p class="px-4 w-12 shrink-0">{{.LineNumber}}</p>
                         <p class="px-4 grow tracking-wider" title="{{.Name}}">{{.DisplayName}}</p>
                         <p class="px-4">{{.FileSize}}</p>
-                        <a href="/download/?file={{.Name}}" class="flex flex-row items-center text-orange-500 hover:underline hover:text-orange-700">
+                        <a href="/download/?file={{.PathEncrypted | urlquery }}" class="flex flex-row items-center text-orange-500 hover:underline hover:text-orange-700">
                             <span class="mr-1">Download</span>
                             <span class="inline-block">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="1em" width="1em" fill="currentColor">
