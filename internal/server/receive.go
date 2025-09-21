@@ -1,11 +1,10 @@
 /*
 Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package server
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"io"
 	"io/fs"
@@ -17,39 +16,43 @@ import (
 	"syscall"
 	"text/template"
 
-	"github.com/spf13/cobra"
+	"go.uber.org/zap"
+
+	"github.com/theadarshsaxena/file-uncle/internal/config"
+	"github.com/theadarshsaxena/file-uncle/internal/src"
 )
 
-var port string
-var username string
-var password string
-var dest string
-var host string
+// var port string
+// var username string
+// var password string
+// var dest string
+// var host string
 
-//go:embed src/static/*
-var staticFiles embed.FS
+// //go:embed src/static/*
+// var staticFiles embed.FS
 
-//go:embed src/html/upload.html
-var uploadHTML string
+// //go:embed src/html/upload.html
+// var uploadHTML string
 
-//go:embed src/html/serve.html
-var ServeHTML string
+// //go:embed src/html/serve.html
+// var ServeHTML string
 
 // receiveCmd represents the receive command
-var receiveCmd = &cobra.Command{
-	Use:   "receive",
-	Short: "Starts a server to receive files",
-	Long: `Starts a server to receive files.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		receive()
-	},
-}
+// var receiveCmd = &cobra.Command{
+// 	Use:   "receive",
+// 	Short: "Starts a server to receive files",
+// 	Long: `Starts a server to receive files.`,
+// 	Run: func(cmd *cobra.Command, args []string) {
+// 		receive()
+// 	},
+// }
 
 func uploadHandler(uploadDir string) http.HandlerFunc {
+	htmlContent := src.UploadHTML
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			// tmpl, err := template.ParseFiles("src/html/upload.html")
-			tmpl, err := template.New("upload").Parse(uploadHTML)
+			tmpl, err := template.New("upload").Parse(htmlContent)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -121,15 +124,15 @@ func uploadHandler(uploadDir string) http.HandlerFunc {
 // 	return "", fmt.Errorf("cannot find local IP address")
 // }
 
-func receive() {
-	if host == "" {
-		host = "localhost"
+func RunReceive(logger *zap.Logger) error {
+	if config.Shared.Host == "" {
+		config.Shared.Host = "localhost"
 	}
 	// Get the current user's home directory
 	usr, err := user.Current()
 	if err != nil {
 		fmt.Println("Error getting current user:", err)
-		return
+		return err
 	}
 	uploadDir := filepath.Join(usr.HomeDir, "uploads")
 
@@ -138,18 +141,17 @@ func receive() {
 		err = os.Mkdir(uploadDir, 0755)
 		if err != nil {
 			fmt.Println("Error creating uploads directory:", err)
-			return
+			return err
 		}
 	}
 
 	// Print the destination folder
 	fmt.Printf("Destination folder: %s\n", uploadDir)
-
     // Serve static files
-	staticFs, err := fs.Sub(staticFiles, "src/static")
+	staticFs, err := fs.Sub(src.StaticFiles, "src/static")
 	if err != nil {
 		fmt.Println("Error serving static files:", err)
-		return
+		return err
 	}
     fs := http.FileServer(http.FS(staticFs))
     http.Handle("/static/", http.StripPrefix("/static/", fs))
@@ -159,18 +161,18 @@ func receive() {
 	// 	http.ServeFile(w, r, "src/html/upload.html")
 	// })
 
-	if username != "" && password != "" {
+	if config.Shared.Username != "" && config.Shared.Password != "" {
 		http.Handle("/", basicAuth(uploadHandler(uploadDir)))
 	} else {
 		http.HandleFunc("/", uploadHandler(uploadDir))
 	}
-	if username == "" && password == "" {
+	if config.Shared.Username == "" && config.Shared.Password == "" {
 		fmt.Println("Authentication disabled (password and username not provided)")
 	} else {
-		fmt.Println("Authentication enabled with username: " + username + " and password: " + password)
+		fmt.Println("Authentication enabled with username: " + config.Shared.Username + " and password: " + config.Shared.Password)
 	}
 
-	fmt.Println("\nServer started on: http://" + host + ":" + port)
+	fmt.Println("\nServer started on: http://" + config.Shared.Host + ":" + config.Shared.Port)
 	
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -179,7 +181,7 @@ func receive() {
 	defer cancel()
 
 	if withNgrok {
-		address := fmt.Sprintf("http://localhost:%s", port)
+		address := fmt.Sprintf("http://localhost:%s", config.Shared.Port)
 		go func() {
 			err := runNgrok(ctx, address)
 			if err != nil {
@@ -194,13 +196,14 @@ func receive() {
 		cancel()
 		os.Exit(0)
 	}()
-	http.ListenAndServe(host + ":" + port, nil)
+	http.ListenAndServe(config.Shared.Host + ":" + config.Shared.Port, nil)
+	return nil
 }
 
 func basicAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
-		if !ok || user != username || pass != password {
+		if !ok || user != config.Shared.Username || pass != config.Shared.Password {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -210,12 +213,6 @@ func basicAuth(next http.Handler) http.Handler {
 }
 
 func init() {
-	rootCmd.AddCommand(receiveCmd)
-	receiveCmd.Flags().StringVarP(&port, "port", "p", "8080", "Port number for the server")
-	receiveCmd.Flags().StringVarP(&username, "username", "u", "", "Username for basic auth (to be entered by the sender in browser)")
-	receiveCmd.Flags().StringVarP(&password, "password", "P", "", "Password for basic auth (to be entered by the sender in browser)")
-	receiveCmd.MarkFlagsRequiredTogether("username", "password")
-	receiveCmd.Flags().BoolVar(&withNgrok, "with-ngrok", false, "Start an ngrok tunnel for public access")
-	receiveCmd.Flags().StringVarP(&dest, "dest", "d", "", "Destination folder (should exist) to save the files")
-	receiveCmd.Flags().StringVarP(&host, "host", "H", "localhost", "Host address or Local IP to bind the server to (default is localhost)")
+	// rootCmd.AddCommand(receiveCmd)
+	
 }

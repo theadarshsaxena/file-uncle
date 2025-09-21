@@ -1,7 +1,7 @@
 /*
 Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 */
-package cmd
+package server
 
 import (
 	"context"
@@ -20,12 +20,13 @@ import (
 	"text/template"
 	"unicode/utf8"
 
-	"github.com/spf13/cobra"
+	"github.com/theadarshsaxena/file-uncle/internal/config"
+	"github.com/theadarshsaxena/file-uncle/internal/src"
+	"go.uber.org/zap"
 	ngrok "golang.ngrok.com/ngrok/v2"
 )
 
  var (
-	directory string
 	generatedKey []byte
  )
 
@@ -33,19 +34,19 @@ import (
 // var trafficPolicy ngrok.TrafficPolicy
 
 // serveCmd represents the serve command
-var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+// var serveCmd = &cobra.Command{
+// 	Use:   "serve",
+// 	Short: "A brief description of your command",
+// 	Long: `A longer description that spans multiple lines and likely contains examples
+// and usage of using your command. For example:
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		serveFile()
-	},
-}
+// Cobra is a CLI library for Go that empowers applications.
+// This application is a tool to generate the needed files
+// to quickly create a Cobra application.`,
+// 	Run: func(cmd *cobra.Command, args []string) {
+// 		serveFile()
+// 	},
+// }
 
 type FileInfo struct {
 	LineNumber int
@@ -181,7 +182,7 @@ func GenerateKey(size int) ([]byte, error) {
 }
 
 func listFiles(w http.ResponseWriter, r *http.Request) {
-	folderPath := directory
+	folderPath := config.Shared.Directory
 
 	var files []FileInfo
 
@@ -211,8 +212,8 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unable to list files", http.StatusInternalServerError)
 		return
 	}
-
-	tmpl, err := template.New("serve").Parse(ServeHTML)
+	serveHtml := src.ServeHTML
+	tmpl, err := template.New("serve").Parse(serveHtml)
 	if err != nil {
 		http.Error(w, "Unable to load template", http.StatusInternalServerError)
 		return
@@ -265,12 +266,12 @@ func runNgrok(ctx context.Context, address string) error {
 	return nil
 }
 
-func serveFile() {
+func RunServe(logger *zap.Logger) error {
 	http.HandleFunc("/", listFiles)
 	http.HandleFunc("/download/", downloadFile)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("cmd/src/static"))))
 
-	fmt.Println("Server starting at http://localhost:8080")
+	fmt.Printf("Server starting at http://%s:%s", config.Shared.Host, config.Shared.Port)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -279,7 +280,7 @@ func serveFile() {
 	defer cancel()
 
 	if withNgrok {
-		address := fmt.Sprintf("http://%s:%s", host, port)
+		address := fmt.Sprintf("http://%s:%s", config.Shared.Host, config.Shared.Port)
 		go func() {
 			err := runNgrok(ctx, address)
 			if err != nil {
@@ -295,7 +296,9 @@ func serveFile() {
 		os.Exit(0)
 	}()
 
-	http.ListenAndServe(fmt.Sprintf("%s:%s", host, port), nil)
+	fmt.Println("Host and Port:", config.Shared.Host + ":" + config.Shared.Port)
+	http.ListenAndServe(fmt.Sprintf("%s:%s", config.Shared.Host, config.Shared.Port), nil)
+	return nil
 }
 
 func init() {
@@ -306,7 +309,7 @@ func init() {
     }
 	// receiveCmd.Flags().StringVarP(&port, "port", "p", "8080", "Port number for the server")
 	// receiveCmd.Flags().StringVarP(&host, "host", "H", "localhost", "Host address or Local IP to bind the server to (default is localhost)")
-	receiveCmd.Flags().StringVarP(&directory, "directory", "y", "./", "Directory to serve files from")
-	serveCmd.Flags().BoolVar(&withNgrok, "with-ngrok", false, "Start an ngrok tunnel for public access")
-	rootCmd.AddCommand(serveCmd)
+	// receiveCmd.Flags().StringVarP(&directory, "directory", "y", "./", "Directory to serve files from")
+	// serveCmd.Flags().BoolVar(&withNgrok, "with-ngrok", false, "Start an ngrok tunnel for public access")
+	// rootCmd.AddCommand(serveCmd)
 }
