@@ -147,14 +147,14 @@ func RunReceive(logger *zap.Logger) error {
 
 	// Print the destination folder
 	fmt.Printf("Destination folder: %s\n", uploadDir)
-    // Serve static files
+	// Serve static files
 	staticFs, err := fs.Sub(src.StaticFiles, "src/static")
 	if err != nil {
 		fmt.Println("Error serving static files:", err)
 		return err
 	}
-    fs := http.FileServer(http.FS(staticFs))
-    http.Handle("/static/", http.StripPrefix("/static/", fs))
+	fs := http.FileServer(http.FS(staticFs))
+	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	// http.Handle("/static/", http.FileServer(http.FS(staticFiles)))
 	// http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +173,7 @@ func RunReceive(logger *zap.Logger) error {
 	}
 
 	fmt.Println("\nServer started on: http://" + config.Shared.Host + ":" + config.Shared.Port)
-	
+
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
@@ -196,7 +196,7 @@ func RunReceive(logger *zap.Logger) error {
 		cancel()
 		os.Exit(0)
 	}()
-	http.ListenAndServe(config.Shared.Host + ":" + config.Shared.Port, nil)
+	http.ListenAndServe(config.Shared.Host+":"+config.Shared.Port, nil)
 	return nil
 }
 
@@ -214,5 +214,5 @@ func basicAuth(next http.Handler) http.Handler {
 
 func init() {
 	// rootCmd.AddCommand(receiveCmd)
-	
+
 }

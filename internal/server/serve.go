@@ -26,9 +26,9 @@ import (
 	ngrok "golang.ngrok.com/ngrok/v2"
 )
 
- var (
+var (
 	generatedKey []byte
- )
+)
 
 // You may need to define trafficPolicy if not already present
 // var trafficPolicy ngrok.TrafficPolicy
@@ -49,11 +49,11 @@ import (
 // }
 
 type FileInfo struct {
-	LineNumber int
-	Name string
-	DisplayName string
-	FileSize string
-	Path string
+	LineNumber    int
+	Name          string
+	DisplayName   string
+	FileSize      string
+	Path          string
 	PathEncrypted string
 }
 
@@ -79,106 +79,106 @@ func FileSize(size int64) string {
 
 // EncryptDeterministic provides consistent output for same input
 func EncryptDeterministic(plaintext string, key []byte) (string, error) {
-    if len(key) != 32 {
-        return "", fmt.Errorf("key must be exactly 32 bytes for AES-256")
-    }
+	if len(key) != 32 {
+		return "", fmt.Errorf("key must be exactly 32 bytes for AES-256")
+	}
 
-    block, err := aes.NewCipher(key)
-    if err != nil {
-        return "", fmt.Errorf("failed to create cipher: %w", err)
-    }
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to create cipher: %w", err)
+	}
 
-    // Generate deterministic IV from plaintext hash
-    hash := sha256.Sum256([]byte(plaintext + string(key[:16])))
-    iv := hash[:16] // Use first 16 bytes as IV
+	// Generate deterministic IV from plaintext hash
+	hash := sha256.Sum256([]byte(plaintext + string(key[:16])))
+	iv := hash[:16] // Use first 16 bytes as IV
 
-    // Pad plaintext to block size
-    paddedPlaintext := pkcs7Pad([]byte(plaintext), aes.BlockSize)
+	// Pad plaintext to block size
+	paddedPlaintext := pkcs7Pad([]byte(plaintext), aes.BlockSize)
 
-    ciphertext := make([]byte, len(paddedPlaintext))
-    mode := cipher.NewCBCEncrypter(block, iv)
-    mode.CryptBlocks(ciphertext, paddedPlaintext)
+	ciphertext := make([]byte, len(paddedPlaintext))
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(ciphertext, paddedPlaintext)
 
-    // Prepend IV to ciphertext
-    result := append(iv, ciphertext...)
-    return base64.StdEncoding.EncodeToString(result), nil
+	// Prepend IV to ciphertext
+	result := append(iv, ciphertext...)
+	return base64.StdEncoding.EncodeToString(result), nil
 }
 
 // DecryptDeterministic decrypts deterministically encrypted data
 func DecryptDeterministic(encrypted string, key []byte) (string, error) {
-    if len(key) != 32 {
-        return "", fmt.Errorf("key must be exactly 32 bytes for AES-256")
-    }
+	if len(key) != 32 {
+		return "", fmt.Errorf("key must be exactly 32 bytes for AES-256")
+	}
 
-    data, err := base64.StdEncoding.DecodeString(encrypted)
-    if err != nil {
-        return "", fmt.Errorf("failed to decode base64: %w", err)
-    }
+	data, err := base64.StdEncoding.DecodeString(encrypted)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode base64: %w", err)
+	}
 
-    if len(data) < aes.BlockSize {
-        return "", fmt.Errorf("encrypted data too short")
-    }
+	if len(data) < aes.BlockSize {
+		return "", fmt.Errorf("encrypted data too short")
+	}
 
-    block, err := aes.NewCipher(key)
-    if err != nil {
-        return "", fmt.Errorf("failed to create cipher: %w", err)
-    }
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to create cipher: %w", err)
+	}
 
-    // Extract IV and ciphertext
-    iv := data[:aes.BlockSize]
-    ciphertext := data[aes.BlockSize:]
+	// Extract IV and ciphertext
+	iv := data[:aes.BlockSize]
+	ciphertext := data[aes.BlockSize:]
 
-    if len(ciphertext)%aes.BlockSize != 0 {
-        return "", fmt.Errorf("ciphertext length not multiple of block size")
-    }
+	if len(ciphertext)%aes.BlockSize != 0 {
+		return "", fmt.Errorf("ciphertext length not multiple of block size")
+	}
 
-    plaintext := make([]byte, len(ciphertext))
-    mode := cipher.NewCBCDecrypter(block, iv)
-    mode.CryptBlocks(plaintext, ciphertext)
+	plaintext := make([]byte, len(ciphertext))
+	mode := cipher.NewCBCDecrypter(block, iv)
+	mode.CryptBlocks(plaintext, ciphertext)
 
-    // Remove padding
-    unpaddedPlaintext, err := pkcs7Unpad(plaintext)
-    if err != nil {
-        return "", fmt.Errorf("failed to remove padding: %w", err)
-    }
+	// Remove padding
+	unpaddedPlaintext, err := pkcs7Unpad(plaintext)
+	if err != nil {
+		return "", fmt.Errorf("failed to remove padding: %w", err)
+	}
 
     return string(unpaddedPlaintext), nil
 }
 
 // PKCS7 padding functions
 func pkcs7Pad(data []byte, blockSize int) []byte {
-    padding := blockSize - (len(data) % blockSize)
-    padText := make([]byte, padding)
-    for i := range padText {
-        padText[i] = byte(padding)
-    }
-    return append(data, padText...)
+	padding := blockSize - (len(data) % blockSize)
+	padText := make([]byte, padding)
+	for i := range padText {
+		padText[i] = byte(padding)
+	}
+	return append(data, padText...)
 }
 
 func pkcs7Unpad(data []byte) ([]byte, error) {
-    if len(data) == 0 {
-        return nil, fmt.Errorf("empty data")
-    }
-    
-    padding := int(data[len(data)-1])
-    if padding > len(data) || padding == 0 {
-        return nil, fmt.Errorf("invalid padding")
-    }
-    
-    for i := len(data) - padding; i < len(data); i++ {
-        if data[i] != byte(padding) {
-            return nil, fmt.Errorf("invalid padding")
-        }
-    }
-    
-    return data[:len(data)-padding], nil
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty data")
+	}
+
+	padding := int(data[len(data)-1])
+	if padding > len(data) || padding == 0 {
+		return nil, fmt.Errorf("invalid padding")
+	}
+
+	for i := len(data) - padding; i < len(data); i++ {
+		if data[i] != byte(padding) {
+			return nil, fmt.Errorf("invalid padding")
+		}
+	}
+
+	return data[:len(data)-padding], nil
 }
 
 // GenerateKey creates a cryptographically secure random key
 func GenerateKey(size int) ([]byte, error) {
-    key := make([]byte, size)
-    _, err := rand.Read(key)
-    return key, err
+	key := make([]byte, size)
+	_, err := rand.Read(key)
+	return key, err
 }
 
 func listFiles(w http.ResponseWriter, r *http.Request) {
@@ -198,11 +198,11 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			files = append(files, FileInfo{
-				Name: info.Name(),
-				DisplayName: displayName,
-				FileSize: FileSize(info.Size()),
-				LineNumber: len(files) + 1,
-				Path: absPath,
+				Name:          info.Name(),
+				DisplayName:   displayName,
+				FileSize:      FileSize(info.Size()),
+				LineNumber:    len(files) + 1,
+				Path:          absPath,
 				PathEncrypted: encryptedPath,
 			})
 		}
@@ -296,17 +296,17 @@ func RunServe(logger *zap.Logger) error {
 		os.Exit(0)
 	}()
 
-	fmt.Println("Host and Port:", config.Shared.Host + ":" + config.Shared.Port)
+	fmt.Println("Host and Port:", config.Shared.Host+":"+config.Shared.Port)
 	http.ListenAndServe(fmt.Sprintf("%s:%s", config.Shared.Host, config.Shared.Port), nil)
 	return nil
 }
 
 func init() {
-    var err error
-    generatedKey, err = GenerateKey(32)
-    if err != nil {
-        panic("Failed to generate key: " + err.Error())
-    }
+	var err error
+	generatedKey, err = GenerateKey(32)
+	if err != nil {
+		panic("Failed to generate key: " + err.Error())
+	}
 	// receiveCmd.Flags().StringVarP(&port, "port", "p", "8080", "Port number for the server")
 	// receiveCmd.Flags().StringVarP(&host, "host", "H", "localhost", "Host address or Local IP to bind the server to (default is localhost)")
 	// receiveCmd.Flags().StringVarP(&directory, "directory", "y", "./", "Directory to serve files from")

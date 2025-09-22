@@ -1,0 +1,62 @@
+version: 2
+project_name: file-uncle
+dist: dist
+
+# Before building, clean up and test
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+# Build for different platforms
+builds:
+  - main: ./cmd/file-uncle/main.go
+    binary: file-uncle
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+
+release:
+  github:
+    owner: theadarshsaxena
+    name: file-uncle
+  
+  name_template: "{{.ProjectName}} v{{.Version}}"
+  
+  header: |
+    ## 🎉 {{.ProjectName}} {{.Version}} Released!
+    
+    **Full Changelog**: https://github.com/theadarshsaxena/file-uncle/compare/{{.PreviousTag}}...{{.Tag}}
+    
+  footer: |
+    ## Installation
+    
+    ### Download Binary
+    Download the appropriate binary for your system from the assets below.
+  
+  # extra_files:
+  #   - glob: ./README.md
+  #   - glob: ./LICENSE
+  #   - glob: ./docs/installation.md
+  #     name_template: "INSTALL.md"
+
+# Package the results
+# archives:
+#   - format: tar.gz
+#     format_overrides:
+#       - goos: windows
+#         format: zip
+#     files:
+#       - README.md
+#       - LICENSE
+
+# Create checksums
+checksum:
+  name_template: 'checksums.txt'
