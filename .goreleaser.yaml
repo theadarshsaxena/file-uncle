@@ -22,24 +22,6 @@ builds:
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
-
-release:
-  github:
-    owner: theadarshsaxena
-    name: file-uncle
-  
-  name_template: "{{.ProjectName}} v{{.Version}}"
-  
-  header: |
-    ## 🎉 {{.ProjectName}} {{.Version}} Released!
-    
-    **Full Changelog**: https://github.com/theadarshsaxena/file-uncle/compare/{{.PreviousTag}}...{{.Tag}}
-    
-  footer: |
-    ## Installation
-    
-    ### Download Binary
-    Download the appropriate binary for your system from the assets below.
   
   # extra_files:
   #   - glob: ./README.md
@@ -60,3 +42,49 @@ release:
 # Create checksums
 checksum:
   name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "merge conflict"
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: 'Bug fixes'
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: 'Performance improvements'
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+
+
+release:
+  github:
+    owner: theadarshsaxena
+    name: file-uncle
+  prerelease: auto
+  make_latest: true
+  name_template: "{{.ProjectName}} v{{.Version}}"
+  
+  header: |
+    ## 🎉 {{.ProjectName}} {{.Version}} Released!
+    
+    **Full Changelog**: https://github.com/theadarshsaxena/file-uncle/compare/{{.PreviousTag}}...{{.Tag}}
+    
+  footer: |
+    ## Installation
+    
+    ### Download Binary
+    Download the appropriate binary for your system from the assets below.
