@@ -20,6 +20,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&config.Shared.Host, "host", "H", "localhost", "Host address or Local IP to bind the server to (default is localhost)")
 	rootCmd.PersistentFlags().StringVarP(&config.Shared.Port, "port", "p", "8080", "Port number for the server")
 	rootCmd.PersistentFlags().BoolVarP(&config.Shared.WithNgrok, "with-ngrok", "n", false, "Start an ngrok tunnel for public access")
+	rootCmd.PersistentFlags().StringVarP(&config.Shared.LogLevel, "log-level", "l", "info", "Log level (debug, info, warn, error)")
 
 	// Serve command
 	serveCmd := &cobra.Command{

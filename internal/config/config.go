@@ -9,6 +9,7 @@ type Config struct {
 	Password    string
 	NgrokToken  string
 	WithNgrok   bool
+	LogLevel    string
 }
 
 var Shared = &Config{}

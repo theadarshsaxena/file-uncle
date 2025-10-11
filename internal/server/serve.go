@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,32 +22,15 @@ import (
 	"unicode/utf8"
 
 	"github.com/theadarshsaxena/file-uncle/internal/config"
+	"github.com/theadarshsaxena/file-uncle/internal/logging"
+	"github.com/theadarshsaxena/file-uncle/internal/ngrok"
 	"github.com/theadarshsaxena/file-uncle/internal/src"
 	"go.uber.org/zap"
-	ngrok "golang.ngrok.com/ngrok/v2"
 )
 
 var (
 	generatedKey []byte
 )
-
-// You may need to define trafficPolicy if not already present
-// var trafficPolicy ngrok.TrafficPolicy
-
-// serveCmd represents the serve command
-// var serveCmd = &cobra.Command{
-// 	Use:   "serve",
-// 	Short: "A brief description of your command",
-// 	Long: `A longer description that spans multiple lines and likely contains examples
-// and usage of using your command. For example:
-
-// Cobra is a CLI library for Go that empowers applications.
-// This application is a tool to generate the needed files
-// to quickly create a Cobra application.`,
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		serveFile()
-// 	},
-// }
 
 type FileInfo struct {
 	LineNumber    int
@@ -186,6 +170,7 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 
 	var files []FileInfo
 
+	// TODO: Add pagination for large number of files, or limit to certain number of files
 	err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
 		if !info.IsDir() {
 			encryptedPath, err := EncryptDeterministic(path, generatedKey)
@@ -225,7 +210,6 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 func downloadFile(w http.ResponseWriter, r *http.Request) {
 	encryptedFileName := r.URL.Query().Get("file")
 	encryptedFileName = strings.ReplaceAll(encryptedFileName, " ", "+")
-	fmt.Println("Encrypted file parameter received:", encryptedFileName)
 	fileName, err := DecryptDeterministic(encryptedFileName, generatedKey)
 	if err != nil {
 		fmt.Println("Decryption error:", err)
@@ -235,59 +219,72 @@ func downloadFile(w http.ResponseWriter, r *http.Request) {
 	// Set headers to force download
 	w.Header().Set("Content-Disposition", "attachment; filename="+fileName)
 	w.Header().Set("Content-Type", "application/octet-stream")
-	fmt.Println("Someone tried downloading file: ", fileName)
+	fileInfo, err := os.Stat(fileName)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+	fileSize := fileInfo.Size()
+	logging.LogServe(fileName, fileSize, r.RemoteAddr)
 	http.ServeFile(w, r, fileName)
 }
 
-var withNgrok bool
-
-func runNgrok(ctx context.Context, address string) error {
-	ngrokAuthToken := os.Getenv("NGROK_AUTHTOKEN")
-	agent, err := ngrok.NewAgent(ngrok.WithAuthtoken(ngrokAuthToken))
-	if err != nil {
-		return err
-	}
-
-	ln, err := agent.Forward(ctx,
-		ngrok.WithUpstream(address),
-		ngrok.WithURL(os.Getenv("NGROK_RESERVED_DOMAIN")),
-		// ngrok.WithTrafficPolicy(trafficPolicy),
-	)
-
-	if err != nil {
-		fmt.Println("Error", err)
-		return err
-	}
-
-	fmt.Println("Endpoint online: forwarding from", ln.URL(), "to", address)
-
-	// Explicitly stop forwarding; otherwise it runs indefinitely
-	<-ln.Done()
-	return nil
-}
-
 func RunServe(logger *zap.Logger) error {
-	http.HandleFunc("/", listFiles)
-	http.HandleFunc("/download/", downloadFile)
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("cmd/src/static"))))
+	fmt.Println("🚀 File-Uncle Server Starting...")
+	
+	fmt.Printf("\n╭─────────────────────────────────────────────────────────────────────────────╮\n")
+	staticFS, err := fs.Sub(src.StaticFiles, "static")
+	if err != nil {
+		panic(err)
+	}	
+	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
+	http.Handle("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		staticHandler.ServeHTTP(w, r)
+	}))
 
-	fmt.Printf("Server starting at http://%s:%s", config.Shared.Host, config.Shared.Port)
+	http.HandleFunc("/download/", downloadFile)
+	http.HandleFunc("/", listFiles)
+
+	localIP, err := getPhysicalInterfaceIP()
+	if err != nil {
+		fmt.Println("│ • Error getting physical interface IP, falling back to localhost:", err)
+		localIP = "localhost"
+	}
+	config.Shared.Host = "0.0.0.0"
+
+	fmt.Printf("│ • Serving files from Directory: %-44s│\n", config.Shared.Directory)
+	fmt.Printf("│ • Authentication not supported in serve cmd yet %28s│\n", "")
+	
+	fmt.Println("╰─────────────────────────────────────────────────────────────────────────────╯")
+	fmt.Printf("🌐 Starting server on http://%s:%s\n", config.Shared.Host, config.Shared.Port)
+	fmt.Printf("\n╭─────────────────────────────────────────────────────────────────────────────╮\n")
+	fmt.Printf("│ Access URLs                                                                 │\n")
+	fmt.Printf("│ • Local Network Access: \033[33mhttp://%-45s\033[0m│\n", fmt.Sprintf("%s:%s",localIP, config.Shared.Port))
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	
 
-	if withNgrok {
-		address := fmt.Sprintf("http://%s:%s", config.Shared.Host, config.Shared.Port)
-		go func() {
-			err := runNgrok(ctx, address)
-			if err != nil {
-				fmt.Println("ngrok error:", err)
-			}
-		}()
+	if config.Shared.WithNgrok {
+		urlChan := make(chan string, 1)
+		errChan := make(chan error, 1)
+		address := fmt.Sprintf("http://%s:%s", localIP, config.Shared.Port)
+		go ngrok.RunNgrok(ctx, address, urlChan, errChan)
+		select {
+		case url := <-urlChan:
+			fmt.Printf("│ • Public URL available: %20s│\n", url)
+		case err := <-errChan:
+			fmt.Printf("│\033[31m • ngrok error: %s\033[0m│\n", err)
+			fmt.Printf("│ • Note: Any device on your network can still access reach here using the local network address above│\n")
+		}
+	} else {
+		fmt.Printf("│ • Public access disabled, use --with-ngrok in command to start tunnel %6s│\n", "")
 	}
+
+	fmt.Println("╰─────────────────────────────────────────────────────────────────────────────╯")
 
 	go func() {
 		<-sigs
@@ -295,8 +292,6 @@ func RunServe(logger *zap.Logger) error {
 		cancel()
 		os.Exit(0)
 	}()
-
-	fmt.Println("Host and Port:", config.Shared.Host+":"+config.Shared.Port)
 	http.ListenAndServe(fmt.Sprintf("%s:%s", config.Shared.Host, config.Shared.Port), nil)
 	return nil
 }
@@ -307,9 +302,4 @@ func init() {
 	if err != nil {
 		panic("Failed to generate key: " + err.Error())
 	}
-	// receiveCmd.Flags().StringVarP(&port, "port", "p", "8080", "Port number for the server")
-	// receiveCmd.Flags().StringVarP(&host, "host", "H", "localhost", "Host address or Local IP to bind the server to (default is localhost)")
-	// receiveCmd.Flags().StringVarP(&directory, "directory", "y", "./", "Directory to serve files from")
-	// serveCmd.Flags().BoolVar(&withNgrok, "with-ngrok", false, "Start an ngrok tunnel for public access")
-	// rootCmd.AddCommand(serveCmd)
 }

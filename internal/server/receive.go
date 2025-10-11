@@ -8,44 +8,25 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"text/template"
 
 	"go.uber.org/zap"
 
 	"github.com/theadarshsaxena/file-uncle/internal/config"
+	"github.com/theadarshsaxena/file-uncle/internal/logging"
+	"github.com/theadarshsaxena/file-uncle/internal/ngrok"
 	"github.com/theadarshsaxena/file-uncle/internal/src"
 )
 
-// var port string
-// var username string
-// var password string
-// var dest string
-// var host string
-
-// //go:embed src/static/*
-// var staticFiles embed.FS
-
-// //go:embed src/html/upload.html
-// var uploadHTML string
-
-// //go:embed src/html/serve.html
-// var ServeHTML string
-
-// receiveCmd represents the receive command
-// var receiveCmd = &cobra.Command{
-// 	Use:   "receive",
-// 	Short: "Starts a server to receive files",
-// 	Long: `Starts a server to receive files.`,
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		receive()
-// 	},
-// }
+var logger *zap.Logger
 
 func uploadHandler(uploadDir string) http.HandlerFunc {
 	htmlContent := src.UploadHTML
@@ -68,9 +49,8 @@ func uploadHandler(uploadDir string) http.HandlerFunc {
 			}
 			defer file.Close()
 
-			fmt.Printf("Uploaded File: %s\n", handler.Filename)
-			fmt.Printf("File Size: %d\n", handler.Size)
-			fmt.Printf("MIME Header: %v\n", handler.Header)
+			logging.LogReceive(handler.Filename, handler.Size, r.RemoteAddr)
+			// logger.Info("Received file upload request", zap.String("filename", handler.Filename), zap.Int64("size", handler.Size), zap.String("remote_addr", r.RemoteAddr), zap.String("user_agent", r.UserAgent()), zap.String("host", r.Host))
 
 			// if dest != "" {
 			// 	if _, err := os.Stat(dest); os.IsNotExist(err) {
@@ -101,30 +81,53 @@ func uploadHandler(uploadDir string) http.HandlerFunc {
 	}
 }
 
-// func getLocalIP() (string, error) {
-// 	addrs, err := net.InterfaceAddrs()
-// 	if err != nil {
-// 		return "", err
-// 	}
+func getPhysicalInterfaceIP() (string, error) {
+    interfaces, err := net.Interfaces()
+    if err != nil {
+        return "", err
+    }
+    
+    // Skip common virtual interface patterns
+    skipPatterns := []string{"docker", "veth", "br-", "virbr", "vmnet", "vbox", "lo"}
+	address := ""
+    
+    for _, iface := range interfaces {
+        // Skip virtual interfaces
+        isVirtual := false
+        for _, pattern := range skipPatterns {
+            if strings.Contains(strings.ToLower(iface.Name), pattern) {
+                isVirtual = true
+                break
+            }
+        }
+        if isVirtual {
+            continue
+        }
+        
+        addrs, err := iface.Addrs()
+        if err != nil {
+            continue
+        }
 
-// 	address := ""
-
-// 	for _, addr := range addrs {
-// 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-// 			if ipnet.IP.To4() != nil {
-// 				fmt.Println(ipnet.IP.String())
-// 				address = ipnet.IP.String()
-// 				// return ipnet.IP.String(), nil
-// 			}
-// 		}
-// 	}
-// 	if address != "" {
-// 		return address, nil
-// 	}
-// 	return "", fmt.Errorf("cannot find local IP address")
-// }
+		
+        
+        for _, addr := range addrs {
+            if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+                if ipv4 := ipnet.IP.To4(); ipv4 != nil {
+                    address = ipv4.String()
+					// fmt.Println("Using physical interface:", iface.Name, "with IP:", address)  // TODO: log this with debug level later
+					return address, nil
+                }
+            }
+        }
+    }
+    
+    return "", fmt.Errorf("no physical interface IP found")
+}
 
 func RunReceive(logger *zap.Logger) error {
+	fmt.Println("🚀 File-Uncle Server Starting...")
+	fmt.Println()
 	if config.Shared.Host == "" {
 		config.Shared.Host = "localhost"
 	}
@@ -145,21 +148,15 @@ func RunReceive(logger *zap.Logger) error {
 		}
 	}
 
-	// Print the destination folder
-	fmt.Printf("Destination folder: %s\n", uploadDir)
-	// Serve static files
-	staticFs, err := fs.Sub(src.StaticFiles, "src/static")
+	fmt.Printf("📁 Upload Directory: %s\n", uploadDir)
+	staticFS, err := fs.Sub(src.StaticFiles, "static")
 	if err != nil {
-		fmt.Println("Error serving static files:", err)
-		return err
-	}
-	fs := http.FileServer(http.FS(staticFs))
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
-
-	// http.Handle("/static/", http.FileServer(http.FS(staticFiles)))
-	// http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-	// 	http.ServeFile(w, r, "src/html/upload.html")
-	// })
+		panic(err)
+	}	
+	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
+	http.Handle("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		staticHandler.ServeHTTP(w, r)
+	}))
 
 	if config.Shared.Username != "" && config.Shared.Password != "" {
 		http.Handle("/", basicAuth(uploadHandler(uploadDir)))
@@ -167,12 +164,22 @@ func RunReceive(logger *zap.Logger) error {
 		http.HandleFunc("/", uploadHandler(uploadDir))
 	}
 	if config.Shared.Username == "" && config.Shared.Password == "" {
-		fmt.Println("Authentication disabled (password and username not provided)")
+		fmt.Println("🔓 Authentication: Disabled (no credentials provided)")
 	} else {
-		fmt.Println("Authentication enabled with username: " + config.Shared.Username + " and password: " + config.Shared.Password)
+		fmt.Println("🔓 Authentication enabled with username: " + config.Shared.Username + " and password: " + config.Shared.Password)
 	}
 
-	fmt.Println("\nServer started on: http://" + config.Shared.Host + ":" + config.Shared.Port)
+	localIP, err := getPhysicalInterfaceIP()
+	if err != nil {
+		fmt.Println("Error getting physical interface IP, falling back to localhost:", err)
+		localIP = "localhost"
+	}
+	config.Shared.Host = "0.0.0.0"
+	fmt.Println("🌐 Starting server on http://" + config.Shared.Host + ":" + config.Shared.Port)
+	fmt.Printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Printf("\n🏠 Local Network Access: \033[33mhttp://%s:%s\033[0m\n", localIP, config.Shared.Port)
+
+	// fmt.Println("\nServer started on: http://" + config.Shared.Host + ":" + config.Shared.Port)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -180,16 +187,26 @@ func RunReceive(logger *zap.Logger) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if withNgrok {
-		address := fmt.Sprintf("http://localhost:%s", config.Shared.Port)
-		go func() {
-			err := runNgrok(ctx, address)
-			if err != nil {
-				fmt.Println("ngrok error:", err)
-			}
-		}()
-	}
+	urlChan := make(chan string, 1)
+	errChan := make(chan error, 1)
 
+	if config.Shared.WithNgrok {
+		// check if the environment variable is set
+		address := fmt.Sprintf("http://%s:%s", localIP, config.Shared.Port)
+		go ngrok.RunNgrok(ctx, address, urlChan, errChan)
+		select {
+		case url := <-urlChan:
+			fmt.Printf("🌍 Public Access (ngrok): \033[33m%s\033[0m\n", url)
+		case err := <-errChan:
+			fmt.Printf("\033[31mngrok error: %s\033[0m\n", err)
+			fmt.Printf("Note: Any device on your network can still access reach here using the local network address above\n")
+		}
+	}
+	
+	fmt.Printf("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	fmt.Println("To send files, open the above URL in your browser or use command: curl -F 'uploadFile=@/path/to/your/file' <URL>")
+	
 	go func() {
 		<-sigs
 		fmt.Println("Stopped local http server and also ngrok tunnel stopped (if enabled)")
@@ -213,6 +230,5 @@ func basicAuth(next http.Handler) http.Handler {
 }
 
 func init() {
-	// rootCmd.AddCommand(receiveCmd)
-
+	logger = logging.GetLogger(config.Shared.LogLevel)
 }
