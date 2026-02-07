@@ -23,17 +23,18 @@ jobs:
           go-version: '1.21'
           cache: true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
+      # Commented out until package-lock.json is committed
+      # - name: Set up Node.js
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: '20'
+      #     cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install
+      # - name: Install dependencies
+      #   run: npm install
 
-      - name: Build Tailwind CSS
-        run: npm run tailwind
+      # - name: Build Tailwind CSS
+      #   run: npm run tailwind
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
