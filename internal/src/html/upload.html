@@ -15,19 +15,43 @@
         </div>
         <!-- Right Part -->
         <div class="md:w-3/5 p-8">
-            <h2 class="text-2xl text-center font-semibold mb-6 font-custom">Upload File</h2>
+            <h2 class="text-2xl text-center font-semibold mb-6 font-custom">Upload Files or Folder</h2>
             <form id="uploadForm" class="flex flex-col items-center justify-center">
-                <label for="dropzone-file" class="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
-                    id="dropzone">
-                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                        <svg class="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-                        </svg>
-                        <p class="mb-2 text-sm text-gray-500"><span class="font-bold">Click to upload</span> or drag and drop</p>
-                    </div>
-                    <input id="dropzone-file" type="file" name="uploadFile" class="hidden" multiple />
-                </label>
-                <div id="fileList" class="mt-4 w-full text-center text-gray-700"></div>
+                <!-- Toggle Buttons -->
+                <div class="flex gap-4 mb-6">
+                    <button type="button" id="fileToggle" class="px-4 py-2 bg-orange-500 text-white rounded font-semibold">Upload Files</button>
+                    <button type="button" id="folderToggle" class="px-4 py-2 bg-gray-400 text-white rounded font-semibold">Upload Folder</button>
+                </div>
+                
+                <!-- File Upload -->
+                <div id="fileUploadSection">
+                    <label for="dropzone-file" class="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                        id="dropzone">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                            </svg>
+                            <p class="mb-2 text-sm text-gray-500"><span class="font-bold">Click to upload</span> or drag and drop</p>
+                        </div>
+                        <input id="dropzone-file" type="file" name="uploadFile" class="hidden" multiple />
+                    </label>
+                </div>
+                
+                <!-- Folder Upload -->
+                <div id="folderUploadSection" style="display: none;">
+                    <label for="folderInput" class="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                        id="folderDropzone">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg class="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6z"/>
+                            </svg>
+                            <p class="mb-2 text-sm text-gray-500"><span class="font-bold">Click to select folder</span> or drag and drop</p>
+                        </div>
+                        <input id="folderInput" type="file" name="folderUpload" class="hidden" webkitdirectory directory multiple />
+                    </label>
+                </div>
+                
+                <div id="fileList" class="mt-4 w-full text-center text-gray-700 max-h-32 overflow-y-auto"></div>
                 <button type="button" id="uploadButton" class="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 mt-8">Upload</button>
                 <div id="status" class="mt-4 text-center text-gray-700"></div>
             </form>

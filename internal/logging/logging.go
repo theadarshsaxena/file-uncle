@@ -53,7 +53,7 @@ func formatBytes(bytes int64) string {
         return fmt.Sprintf("%d bytes", bytes)
     } else if bytes < 1024*1024 {
         return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
-    } else {
+    } else    {
         return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
     }
 }

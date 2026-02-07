@@ -1,0 +1,12 @@
+{
+  "name": "file-uncle",
+  "version": "1.0.0",
+  "description": "A simple file upload server with folder support",
+  "scripts": {
+    "tailwind": "tailwindcss -i internal/src/static/css/input.css -o internal/src/static/css/base.css",
+    "tailwind:watch": "tailwindcss -i internal/src/static/css/input.css -o internal/src/static/css/base.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.13"
+  }
+}
