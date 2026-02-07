@@ -41,42 +41,67 @@ func uploadHandler(uploadDir string) http.HandlerFunc {
 			tmpl.Execute(w, nil)
 		} else {
 			r.ParseMultipartForm(10 << 20) // limit your max input length!
-			file, handler, err := r.FormFile("uploadFile")
-			if err != nil {
-				fmt.Println("Error retrieving the file")
-				fmt.Println(err)
+			files := r.MultipartForm.File["uploadFile"]
+			
+			if len(files) == 0 {
+				fmt.Println("Error: no files uploaded")
+				http.Error(w, "No files uploaded", http.StatusBadRequest)
 				return
 			}
-			defer file.Close()
 
-			logging.LogReceive(handler.Filename, handler.Size, r.RemoteAddr)
-			// logger.Info("Received file upload request", zap.String("filename", handler.Filename), zap.Int64("size", handler.Size), zap.String("remote_addr", r.RemoteAddr), zap.String("user_agent", r.UserAgent()), zap.String("host", r.Host))
+			totalSize := int64(0)
+			successCount := 0
+			failureCount := 0
 
-			// if dest != "" {
-			// 	if _, err := os.Stat(dest); os.IsNotExist(err) {
-			// 		fmt.Println("Destination folder does not exist")
-			// 		return
-			// 	}
-			// 	if dest[len(dest)-1:] == "/" {
-			// 		dest = dest[:len(dest)-1]
-			// 	}
-			// } else{
-			// 	dest = "./uploads"
-			// }
-			dst, err := os.Create(filepath.Join(uploadDir, handler.Filename))
-			if err != nil {
-				fmt.Println("Error creating file")
-				fmt.Println(err)
-				return
+			for _, fileHeader := range files {
+				file, err := fileHeader.Open()
+				if err != nil {
+					fmt.Printf("Error opening file %s: %v\n", fileHeader.Filename, err)
+					failureCount++
+					continue
+				}
+				defer file.Close()
+
+				// Extract the file path (handles both single files and folder structure)
+				filePath := fileHeader.Filename
+				
+				// Create destination path, preserving folder structure
+				dstPath := filepath.Join(uploadDir, filePath)
+				dstDir := filepath.Dir(dstPath)
+
+				// Create directories if they don't exist
+				if err := os.MkdirAll(dstDir, 0755); err != nil {
+					fmt.Printf("Error creating directory %s: %v\n", dstDir, err)
+					failureCount++
+					continue
+				}
+
+				// Create the file
+				dst, err := os.Create(dstPath)
+				if err != nil {
+					fmt.Printf("Error creating file %s: %v\n", dstPath, err)
+					failureCount++
+					continue
+				}
+				defer dst.Close()
+
+				// Copy file contents
+				if _, err := io.Copy(dst, file); err != nil {
+					fmt.Printf("Error copying file %s: %v\n", filePath, err)
+					failureCount++
+					continue
+				}
+
+				logging.LogReceive(filePath, fileHeader.Size, r.RemoteAddr)
+				totalSize += fileHeader.Size
+				successCount++
 			}
-			defer dst.Close()
 
-			if _, err := io.Copy(dst, file); err != nil {
-				fmt.Println("Error copying file")
-				fmt.Println(err)
-				return
+			if failureCount > 0 {
+				fmt.Fprintf(w, "Uploaded %d files successfully with %d failures\n", successCount, failureCount)
+			} else {
+				fmt.Fprintf(w, "Successfully Uploaded %d files\n", successCount)
 			}
-			fmt.Fprintf(w, "Successfully Uploaded File\n")
 		}
 	}
 }

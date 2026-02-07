@@ -1,6 +1,11 @@
 /** @type {import('tailwindcss').Config} */
+const path = require('path');
+
 module.exports = {
-    content: ["./cmd/src/**/*.{html,js}"],
+    content: [
+        path.resolve(__dirname, './internal/src/**/*.{html,js,jsx,ts,tsx}'),
+        path.resolve(__dirname, './cmd/**/*.{html,js,jsx,ts,tsx}')
+    ],
     theme: {
       extend: {
         fontFamily: {
